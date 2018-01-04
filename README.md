@@ -1,4 +1,3 @@
-# snake-test-html5
-# snake-test-html5
+# Snake Test!
 
 Move using keyboard Arrows
