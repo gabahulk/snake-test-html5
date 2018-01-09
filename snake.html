@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<link rel='shortcut icon' type='image/x-icon' href='Snake-icon.png' />
+<style>
+canvas {
+    border:1px solid #d3d3d3;
+    background-color: #f1f1f1;
+}
+</style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<head>
+	<meta charset="UTF-8">
+	<title>Gabriel's Snake Game Test!</title>
+</head>
+<body onload="startGame()">
+</body>
+
+<script>
+	var snake;
+	var score;
+	var gameOverText;
+	var instructionText;
+	var bgm;
+	var eatSound;
+	var loseSound;
+
+	var myGameArea = {
+	    canvas : document.createElement("canvas"),
+	    start : function() {
+            this.canvas.width = 500;
+            this.canvas.height = 500;
+            this.timeStep = 70;
+            this.context = this.canvas.getContext("2d");
+            document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+            this.interval = setInterval(updateGameArea, this.timeStep);
+            
+            myGameArea.key = 39;
+    	    window.addEventListener('keydown', function (e) {
+    	    	if ((myGameArea.lastKey -2 != e.keyCode && myGameArea.lastKey + 2 != e.keyCode) && !myGameArea.key){
+					myGameArea.key = e.keyCode;
+    	    	}
+            })
+        },
+        clear : function() {
+            this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        },
+        stop : function() {
+            clearInterval(this.interval);
+            this.interval = setInterval(function(){
+            	if (myGameArea.key == 13) {
+            		location.reload();
+            	}
+
+            	myGameArea.key = null
+            }, this.timeStep);
+            bgm.stop()
+        },
+        update: function(){
+        	if(!this.food){
+        		this.food = new Food(20, "green")
+        	}
+        	this.food.update()
+        }
+	}
+
+	function Sound(src) {
+	    this.sound = document.createElement("audio");
+	    this.sound.src = src;
+	    this.sound.setAttribute("preload", "auto");
+	    this.sound.setAttribute("controls", "none");
+	    this.sound.style.display = "none";
+	    document.body.appendChild(this.sound);
+	    this.play = function(){
+	        this.sound.play();
+	    }
+	    this.stop = function(){
+	        this.sound.pause();
+	    }
+	}
+
+	function getRandomPosition(min, max) {
+	  min = Math.floor(min);
+	  max = Math.floor(max);
+	  var value = Math.floor(Math.random() * (max - min)) + min
+	  value = Math.max(value - value % 20, 0)
+	  return value;
+	}
+
+	function Food(blockSize,color) {
+    	var x = getRandomPosition(0,myGameArea.canvas.width)
+    	var y = getRandomPosition(0,myGameArea.canvas.height)
+    	this.x = x
+    	this.y = y
+    	this.color = color
+    	this.blockSize = blockSize
+		ctx = myGameArea.context;
+	    ctx.fillStyle = this.color;
+	    ctx.fillRect(x, y, this.blockSize, this.blockSize);
+
+	    this.update = function(){
+	        ctx = myGameArea.context;
+	        ctx.fillStyle = this.color;
+	        ctx.fillRect(this.x, this.y, this.blockSize, this.blockSize);
+	    }
+	    this.destroy = function () {
+	    	myGameArea.food = null
+	    }
+	}
+
+	function SnakePart(blockSize, x, y, color){
+		this.blockSize = blockSize
+		this.color = color
+		this.x = x
+		this.y = y
+		ctx = myGameArea.context;
+	    ctx.fillStyle = color;
+	    ctx.fillRect(x, y, blockSize, blockSize);
+
+	    this.update = function(x, y){
+	        ctx = myGameArea.context;
+	        this.x = x
+			this.y = y
+	        ctx.fillStyle = this.color;
+	        ctx.fillRect(x, y, this.blockSize, this.blockSize);
+	    }
+	}
+
+	function Snake(blockSize, color, headX, headY,initialNumberOfParts)
+	{
+	    this.blockSize = blockSize;
+	    this.x = headX;
+	    this.y = headY;
+	    this.color = color;
+
+	    this.bodyParts = []
+	    for (var i = 0; i < initialNumberOfParts; i++) {
+	    	var x = headX + (-i * blockSize);
+	    	var y = headY;
+	    	this.bodyParts[i] = new SnakePart(blockSize,x,y,color)
+	    }
+		this.update = function(){
+			for (var i = this.bodyParts.length - 1; i >= 0; i--) {
+				if (i == 0){
+					this.bodyParts[i].update(this.x,this.y)
+				}
+				else{
+					this.bodyParts[i].update(this.bodyParts[i-1].x,this.bodyParts[i-1].y)
+				}
+			}
+	    },
+	    this.addBodyPart = function(){
+	    	var lastPos = this.bodyParts[this.bodyParts.length-1]
+	    	var lastX = lastPos.x
+	    	var lastY = lastPos.y
+			this.bodyParts.push(new SnakePart(this.blockSize,lastX,lastY,this.color))
+	    },
+	    this.moveUp = function(){
+	    	this.y += -this.blockSize
+	    },
+	    this.moveDown = function(){
+	    	this.y += this.blockSize
+	    },
+	    this.moveLeft = function(){
+	    	this.x += -this.blockSize
+	    },
+	    this.moveRight = function(){
+	    	this.x += this.blockSize
+	    },
+	    this.collisionDetection = function(otherobj) {
+	    	var margin = 5;
+	        var myleft = this.x;
+	        var myright = this.x + (this.blockSize - margin);
+	        var mytop = this.y;
+	        var mybottom = this.y + (this.blockSize - margin);
+	        var otherleft = otherobj.x;
+	        var otherright = otherobj.x + (otherobj.blockSize - margin);
+	        var othertop = otherobj.y;
+	        var otherbottom = otherobj.y + (otherobj.blockSize - margin);
+	        var crash = true;
+	        if ((mybottom < othertop) ||
+	               (mytop > otherbottom) ||
+	               (myright < otherleft) ||
+	               (myleft > otherright)) {
+	           crash = false;
+	        }
+	        return crash;
+	    },
+	    this.collidedWithSelf = function () {
+	    	// i goes to 2 because it's impossible to colide 2 parts
+	    	for (var i = this.bodyParts.length - 1; i >= 2; i--) { 
+	    		if (this.collisionDetection(this.bodyParts[i])){
+	    			return true
+	    		}
+	    	}
+			return false
+	    },
+	    this.isOutOfBounds = function () {
+	    	var margin = 0
+	    	var isOutHorizontaly = (this.x + margin  < 0 || this.x >= myGameArea.canvas.width)
+	    	var isOutVerticaly = (this.y + margin < 0 || this.y >= myGameArea.canvas.height) 
+	    	return isOutHorizontaly || isOutVerticaly
+	    }
+	}
+
+	function Text(size, fontStyle, color, x, y,label){
+	  this.size = size;
+  	  this.fontStyle = fontStyle;
+  	  this.label = label;
+  	  this.x = x;
+  	  this.y = y; 
+	  ctx.font = this.size + " " + this.fontStyle;
+      ctx.fillStyle = color;
+      ctx.fillText(this.text, this.x, this.y);
+      this.update = function(){
+  		ctx.font = this.width + " " + this.height;
+  	   	ctx.fillStyle = color;
+  	   	ctx.fillText(this.label, this.x, this.y);
+	  }
+	}
+
+	function startGame() {
+	    myGameArea.start();
+
+ 		snake = new Snake(20, "red", 20, 120,5);
+
+ 		score = new Text("30px", "Consolas", "black", 240, 40,0);
+ 		gameOverText = new Text("30px", "Consolas", "black", 170, 230,"");
+
+ 		instructionText = new Text("30px", "Consolas", "black", 60, 270,"");
+
+ 		bgm = new Sound("bgm.wav");
+ 		eatSound = new Sound("eat.wav");
+ 		loseSound = new Sound("lose.wav");
+
+ 		//repeat BGM
+ 		bgm.sound.addEventListener('ended', function() {
+ 		    this.currentTime = 0;
+ 		    bgm.play();
+ 		}, false);
+ 		bgm.play();
+	}
+
+	function consumeKey() {
+		if (myGameArea.key) {
+			myGameArea.lastKey = myGameArea.key
+        	myGameArea.key = null
+		}
+	}
+
+	function updateGameArea() {
+		if (snake.collidedWithSelf() || snake.isOutOfBounds()){ //game over
+	    	myGameArea.stop();
+			loseSound.play();
+			gameOverText.label = "Game Over!"
+			instructionText.label = "Press ENTER to restart!"
+	    	gameOverText.update()
+	    	instructionText.update()
+	    }
+	    else{
+		    myGameArea.clear();
+		    var key;
+
+		    if(myGameArea.key){
+		    	key = myGameArea.key
+		    }
+		    else{
+		    	key = myGameArea.lastKey
+		    }
+
+		    switch(key) {
+		        case 37:
+		            snake.moveLeft();
+		            consumeKey();
+		            break;
+		        case 39:
+		            snake.moveRight();
+		            consumeKey();
+		            break;
+		        case 38:
+		            snake.moveUp();
+		            consumeKey();
+		            break;
+		        case 40:
+		            snake.moveDown();
+		            consumeKey();
+		            break;
+		    }
+
+		    myGameArea.update();
+
+		    if(snake.collisionDetection(myGameArea.food)){ //collided with food
+		    	score.label = parseInt(score.label) + 1;
+		    	myGameArea.food.destroy();
+		    	snake.addBodyPart();
+				eatSound.play();
+		    }
+		    
+		    snake.update();
+	    	score.update();
+	    }
+	}
+</script>
+</html>
